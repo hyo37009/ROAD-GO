@@ -138,34 +138,112 @@ while not rospy.is_shutdown():
 
     # ==============================#
     '''
+    주차의 페이즈는 총 4가지로 이루어집니다.
+    1) 주차구역에 수직 방향으로 제자리 회전
+    2) 주차구역의 중앙까지 직진하여 이동
+    3) 주차구역에 수평 방향으로 제자리 회전
+    4) 주차구역까지 직진
+    이후 지정된 주차구역에 들어가면 차가 멈추면서 주차가 완료됩니다.
     
+    단, 시뮬레이터의 시작점(숫자 1, 2, 3, 4를 누르면 차량이 이동하는 위치)에서
+    1)을 수행하기 위해 제자리 회전을 한다면
+    수직으로 회전하기 전에 벽에 부딪혀 차가 멈춰버립니다.
+    
+    그런 현상을 막기 위해 일련의 주차과정을 수행하기 이전,
+    차를 벽에서 띄어놓기 위해 약간의 우회전을 합니다.
+    특히, 이 우회전을 한 뒤 차량이 주차구역에 수평으로 정렬됩니다.
+    이동하는 값은 시뮬레이터를 여러 번 실행하며 실험적으로 얻은 상숫값입니다.
+    
+    주차구역에 수직 방향으로 회전한 뒤, 현재 위치에 따라 전진 또는 후진합니다.
+    이때, 전진/후진하는 값은 DX 값에 비례합니다.
+    (차가 수직으로 놓여있기 때문에 DX 값(단위:픽셀)과 주차구역까지의 정렬하기 위한 거리가 같습니다)
+    
+    
+    마지막으로, 차를 주차구역의 수평 방향으로 제자리 회전시킵니다.
+    2)에서 차량의 위치를 적절하게 이동했기 때문에, DX가 0이 된다면 차와 주차구역이 수평하게 됩니다.
+    
+    이후 DX < 72까지 차를 이동하면 주차가 완료됩니다.
+    
+    실제로 코드를 실행하면, 차가 주차구역에 대해서 수직/수평이 아닌 다소의 오차값을 가지게 됩니다.
+    이는 코드 작업을 진행한 노트북의 사양이 낮아 매번 실행할 때마다 차량이 이동하는 정도가 달라져 정확한 수치를 구하기 어려웠기 때문입니다.
+    다만 오차범위 내에서도 차가 잘 주차됩니다.
+    '''
+
+    '''
+    기본 구조:
+        일정한 시간동안 특정한 행동을 반복합니다.
+        코드가 한번 반복될 때마다(로스 토픽이 한번 발생될 때마다) count값이 1씩 올라가고
+        보통 retry 변수값을 1Hz로 하여 특정한 행동을 반복합니다.
+    
+    변수 설명:
+        atime, count:
+            모터 토픽이 한번 발생할 때마다 1씩 증가하여
+            실행 시간을 기록하는 역할을 합니다.
+        retry : 
+            count, 반복주기와 관련된 변수입니다.
+            -retry < count < 0일 동안 반복의 첫번째 행동을,
+            0 < count < retry일 동안 반복의 두번째 행동을 합니다.
+            총 2retry가 1Hz가 되어 차량이 일정한 행동을 수행합니다.
+        reftime:
+            atime, 반복 시간과 관련된 변수입니다.
+            atime이 reftime이 될 때 까지 특정한 행동을 수행합니다.
+            
+        
+        refspeed:
+            레퍼런스 스피드, 기준이 되는 속도입니다.
+            50으로 설정되어있습니다.
+        refangle:
+            레퍼런스 앵글, 기준이 되는 조향각입니다.
+            50으로 설정되어있습니다.
+        temspeed:
+            모터 토픽을 발생시킬 속도값입니다.
+        temangle:
+            모터 토픽을 발생시킬 조향각입니다.
+    '''
+
+
+    # ---------------------------------------------------- #
+    '''
+    우선, 차가 출발하기 전 1~4의 키 값을 받을 시간이 필요하니, 
+    6retry의 시간이 지난 후 차가 출발합니다.
+    '''
+    if count < -6 * retry:
+        temspeed = 0
+        temangle = 0
+    '''
+    제자리에서 회전을 하기 전, 차를 우회전 전진 시킵니다.
+    이 코드를 수행한 뒤 차는 주차구역과 수평하게 됩니다.
+    '''
+    if -9 * retry < count < -retry:
+        temspeed = refspeed
+        if arData["DX"] > 0:
+            temangle = refangle
+        else:
+            temangle = -refangle
+    elif count == -retry:
+            now = 1
+            count = -retry
+            atime = 0
+    '''
+    어느 페이즈를 수행해야하는지 now값을 검사합니다.
+    
+    now값은 아래와 같습니다.
+    1) 주차구역에 수직 방향으로 제자리 회전
+    2) 주차구역의 중앙까지 직진하여 이동
+    3) 주차구역에 수평 방향으로 제자리 회전, 
+        + 주차구역까지 직진
+    
+    각 페이즈가 끝나면 now += 1이 되어 다음 페이즈로 넘어갑니다.
     
     
     '''
 
-
-
-    # 핸들 조향각과 speed 설정하기
-    if count < -6 * retry:  # 1, 2, 3, 4 키 입력을 위해 잠시 멈췄다 시작함
-        temspeed = 0
-        temangle = 0
-    if -9 * retry < count < -retry:    # 구석에서 시작하는 경우 초기 회전하다가 테두리 충돌하는 경우가 있기 떄문에
-        temspeed = 50                 # 그것을 방지하기 위해서 벽에서 떨어뜨려줍니다
-        if arData["DX"] > 0:
-            temangle = 50
-        else:
-            temangle = -50
-    elif count == -retry:    #초기 세팅이 끝나면 저장합니다.
-        if now == None:
-            now = 1
-            count = -retry
-            atime = 0
-
-    if now == 1:                        #회전
+    if now == 1:                            # 1) 주차구역에 수직 방향으로 제자리 회전
         where = 0
         reftime = 38 * retry
         firstDx = int(arData["DX"])
-    elif now == 2:                      #직진
+
+    elif now == 2:                          # 2) 주차구역의 중앙까지 직진하여 이동
         if yaw > 0:
             where = 3
             reftime = abs(firstDx) * 1.1
@@ -173,36 +251,48 @@ while not rospy.is_shutdown():
             where = 2
             reftime = abs(firstDx) * 0.9
 
-    elif now == 3:
+    elif now == 3:                          # 3) 주차구역에 수평 방향으로 제자리 회전
         reftime = float('inf')
+        # DX값이 0이 될 때 까지 회전합니다
         if int(arData["DX"]) > 0:
-            where = 0
+            where = 0                       # DX값이 0보다 크다면 우회전합니다
             firstDy = int(arData["DY"])
         elif int(arData["DX"]) < 0:
-            where = 1
+            where = 1                       # DX값이 0보다 작다면 좌회전합니다.
             firstDy = int(arData["DY"])
-        else:
-            where = 2
-            if int(arData["DY"]) < 73:
-                finish = True
+        else:                               # 4) 주차구역까지 직진
+            where = 2                       # 직진합니다.
+            if int(arData["DY"]) < 73:      # 만약 DY값이 72이하이면
+                finish = True               # 종료합니다.
 
-
-
-
-    if where == 0:              #where0은 제자리에서 우회전하는 코드입니다.
+# ---------------------------------------------------------------------------- #
+    '''
+    where변수는 어떤 행동을 취할지 정하는 변수입니다.
+    각 행동은 아래와 같습니다.
+    0) 제자리에서 우회전함
+    1) 제자리에서 좌회전함
+    2) 직진
+    3) 후진
+    '''
+# ----------------------
+    '''
+    제자리에서 우회전합니다.
+    제자리에서 우회전 하는 것은 1Hz, 즉 모터 토픽이 2retry만큼 발생되었을 때
+    -retry < count < 0 만큼은 우회전 직진을 하지만
+    0 < count < retry 만큼은 후진을 하여
+    제자리에서 회전할 수 있도록 만듭니다.
+    '''
+    if where == 0:
         if count > retry:
             count = -retry
 
-        if count < 0:           # 첫번째 반복
-            temspeed = refspeed * 2
-            temangle = 50
-        elif count == 0:  # 반복 기준점
-            prevDx = int(arData["DX"])
-            prevDy = int(arData["DY"])
-        elif count < retry:  # 두번째 반복
-            temspeed = -refspeed * 2.1
+        if count < 0:                       # -retry < count < 0 일 때,
+            temspeed = refspeed             # 직진으로
+            temangle = refangle             # 우회전합니다
+        elif count < retry:                 # 0 <= count < retry 일 때,
+            temspeed = -refspeed            # 후진합니다.
             temangle = 0
-        elif count == retry:  # 반복 기준점2
+        elif count == retry:                #
             Docount2 = False if Docount2 == True else True
             if Docount2 == True:
                 temangle = refangle
@@ -223,7 +313,7 @@ while not rospy.is_shutdown():
 
         if count < 0:         # 첫번째 반복
             temspeed = refspeed * 2
-            temangle = -50
+            temangle = -refangle
         elif count == 0:  # 반복 기준점
             prevDx = int(arData["DX"])
             prevDy = int(arData["DY"])
@@ -245,14 +335,14 @@ while not rospy.is_shutdown():
 
     elif where == 2:            #where2은 전진하는 코드입니다.
         temangle = 0
-        temspeed = 50
+        temspeed = refspeed
         if atime > reftime:
             atime = 0
             now += 1
 
     elif where == 3:            # where3은 후진하는 코드
         temangle = 0
-        temspeed = -50
+        temspeed = -refangle
         if atime > reftime:
             atime = 0
             now += 1
