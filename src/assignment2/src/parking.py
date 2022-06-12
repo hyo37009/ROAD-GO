@@ -208,18 +208,18 @@ while not rospy.is_shutdown():
     6retry의 시간이 지난 후 차가 출발합니다.
     '''
     if count < -6 * retry:
-        temspeed = 0
-        temangle = 0
+        speed = 0
+        angle = 0
     '''
     제자리에서 회전을 하기 전, 차를 우회전 전진 시킵니다.
     이 코드를 수행한 뒤 차는 주차구역과 수평하게 됩니다.
     '''
     if -9 * retry < count < -retry:
-        temspeed = refspeed
+        speed = refspeed
         if arData["DX"] > 0:
-            temangle = refangle
+            angle = refangle
         else:
-            temangle = -refangle
+            angle = -refangle
     elif count == -retry:
             now = 1
             count = -retry
@@ -246,10 +246,10 @@ while not rospy.is_shutdown():
     elif now == 2:                          # 2) 주차구역의 중앙까지 직진하여 이동
         if yaw > 0:
             where = 3
-            reftime = abs(firstDx) * 1.1
+            reftime = abs(firstDx)
         else:
             where = 2
-            reftime = abs(firstDx) * 0.9
+            reftime = abs(firstDx)
 
     elif now == 3:                          # 3) 주차구역에 수평 방향으로 제자리 회전
         reftime = float('inf')
@@ -262,7 +262,7 @@ while not rospy.is_shutdown():
             firstDy = int(arData["DY"])
         else:                               # 4) 주차구역까지 직진
             where = 2                       # 직진합니다.
-            if int(arData["DY"]) < 70:      # 만약 DY < 70 이면
+            if int(arData["DY"]) < 72:      # 만약 DY < 70 이면
                 finish = True               # 종료합니다.
 
 # ---------------------------------------------------------------------------- #
@@ -287,11 +287,11 @@ while not rospy.is_shutdown():
             count = -retry
 
         if count < 0:                       # -retry < count < 0 일 때,
-            temspeed = refspeed             # 직진으로
-            temangle = refangle             # 우회전합니다
+            speed = refspeed             # 직진으로
+            angle = refangle             # 우회전합니다
         elif count < retry:                 # 0 <= count < retry 일 때,
-            temspeed = -refspeed            # 후진합니다.
-            temangle = 0
+            speed = -refspeed            # 후진합니다.
+            angle = 0
         elif count == retry:                #
             count = -retry
         if atime > reftime:
@@ -303,11 +303,11 @@ while not rospy.is_shutdown():
         if count > retry:
             count = -retry
         if count < 0:         # 첫번째 반복
-            temspeed = refspeed
-            temangle = -refangle
+            speed = refspeed
+            angle = -refangle
         elif count < retry:  # 두번째 반복
-            temspeed = -refspeed
-            temangle = 0
+            speed = -refspeed
+            angle = 0
         elif count == retry:  # 반복 기준점2
             count = -retry
         if atime > reftime:
@@ -315,15 +315,15 @@ while not rospy.is_shutdown():
             now += 1
 
     elif where == 2:            #where2은 전진하는 코드입니다.
-        temangle = 0
-        temspeed = refspeed
+        angle = 0
+        speed = refspeed
         if atime > reftime:
             atime = 0
             now += 1
 
     elif where == 3:            # where3은 후진하는 코드
-        temangle = 0
-        temspeed = -refangle
+        angle = 0
+        speed = -refangle
         if atime > reftime:
             atime = 0
             now += 1
@@ -333,9 +333,6 @@ while not rospy.is_shutdown():
     # 모터 토픽을 발생시키기 전(다음 반복을 하기 전)에 할 일
     count += 1
     atime += 1
-
-    speed = temspeed
-    angle = temangle
 
     if finish == True:
         speed = 0
