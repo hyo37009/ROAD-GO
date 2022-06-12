@@ -249,7 +249,7 @@ while not rospy.is_shutdown():
             reftime = abs(firstDx)
         else:
             where = 2
-            reftime = abs(firstDx)
+            reftime = abs(firstDx) + 100
 
     elif now == 3:                          # 3) 주차구역에 수평 방향으로 제자리 회전
         reftime = float('inf')
@@ -262,7 +262,7 @@ while not rospy.is_shutdown():
             firstDy = int(arData["DY"])
         else:                               # 4) 주차구역까지 직진
             where = 2                       # 직진합니다.
-            if int(arData["DY"]) < 72:      # 만약 DY < 70 이면
+            if int(arData["DY"]) < 73:      # 만약 DY < 70 이면
                 finish = True               # 종료합니다.
 
 # ---------------------------------------------------------------------------- #
