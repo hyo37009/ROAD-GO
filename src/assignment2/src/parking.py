@@ -32,18 +32,14 @@ arData = {"DX": 0.0, "DY": 0.0, "DZ": 0.0,
 roll, pitch, yaw = 0, 0, 0
 motor_msg = xycar_motor()
 
-global angle, prevDx, prevDy, prevYaw, prevSpeed, prevAngle, now, where, reftime, firstDy
-angle, prevDx, prevDy, prevYaw, prevSpeed, prevAngle, now = 0, 0, 0, 0, 0, 0, None
-global count, firstDx, finish
+global refangle, refspeed, now, where, reftime, firstDx, firstDy, count, finish, retry
+
+now = None
 refspeed = 50
 refangle = 50
 retry = 50
 count = -50 * retry
-retry2 = 100
 atime = 0
-debugcount = False
-Docount2 = False
-twocount = False
 where = None
 reftime = 0
 firstDx = 0
@@ -86,8 +82,7 @@ motor_pub = rospy.Publisher('xycar_motor', xycar_motor, queue_size=1)
 
 
 while not rospy.is_shutdown():
-    global prevDx, prevDy, prevYaw, prevSpeed, prevAngle, count, refspeed, refangle, prevDistance
-    global atime, debugcount, Docount2, twocount, where, reftime, firstDx, firstDy
+    global refangle, refspeed, now, where, reftime, firstDx, firstDy, count, finish, retry
 
     # 쿼터니언 형식의 데이터를 오일러 형식의 데이터로 변환
     (roll, pitch, yaw) = euler_from_quaternion((arData["AX"], arData["AY"], arData["AZ"], arData["AW"]))
@@ -287,53 +282,56 @@ while not rospy.is_shutdown():
             count = -retry
 
         if count < 0:                       # -retry < count < 0 일 때,
-            speed = refspeed             # 직진으로
-            angle = refangle             # 우회전합니다
+            speed = refspeed                # 직진으로
+            angle = refangle                # 우회전합니다
         elif count < retry:                 # 0 <= count < retry 일 때,
-            speed = -refspeed            # 후진합니다.
+            speed = -refspeed               # 후진합니다.
             angle = 0
-        elif count == retry:                #
-            count = -retry
-        if atime > reftime:
-            atime = 0
-            now += 1
+        elif count == retry:                # 1Hz가 지나면
+            count = -retry                  # count를 초기값으로 만듭니다.
 
+        if atime > reftime:                 # 설정한 총 실행시간이 지나면
+            atime = 0                       # atime을 초기값으로 만들고
+            now += 1                        # 다음 페이즈로 넘어갑니다.
 
-    elif where == 1:            #where1은 제자리에서 좌회전하는 코드입니
+    elif where == 1:        #제자리에서 좌회전합니다. 로직은 제자리 우화전과 같습니다.
         if count > retry:
             count = -retry
-        if count < 0:         # 첫번째 반복
-            speed = refspeed
-            angle = -refangle
-        elif count < retry:  # 두번째 반복
-            speed = -refspeed
+        if count < 0:                       # -retry < count < 0 일 때,
+            speed = refspeed                # 직진으로
+            angle = -refangle               # 우회전합니다
+        elif count < retry:                 # 0 <= count < retry 일 때,
+            speed = -refspeed               # 후진합니다.
             angle = 0
-        elif count == retry:  # 반복 기준점2
-            count = -retry
-        if atime > reftime:
-            atime = 0
-            now += 1
+        elif count == retry:                # 1Hz가 지나면
+            count = -retry                  # count를 초기값으로 만듭니다.
 
-    elif where == 2:            #where2은 전진하는 코드입니다.
+        if atime > reftime:                 # 설정한 총 실행시간이 지나면
+            atime = 0                       # atime을 초기값으로 만들고
+            now += 1                        # 다음 페이즈로 넘어갑니다.
+
+    elif where == 2:        #단순히 전진합니다.
         angle = 0
         speed = refspeed
-        if atime > reftime:
-            atime = 0
-            now += 1
+        if atime > reftime:                 # 설정한 총 실행시간이 지나면
+            atime = 0                       # atime을 초기값으로 만들고
+            now += 1                        # 다음 페이즈로 넘어갑니다.
 
-    elif where == 3:            # where3은 후진하는 코드
+    elif where == 3:        #단순히 후진합니다.
         angle = 0
         speed = -refangle
-        if atime > reftime:
-            atime = 0
-            now += 1
+        if atime > reftime:                 # 설정한 총 실행시간이 지나면
+            atime = 0                       # atime을 초기값으로 만들고
+            now += 1                        # 다음 페이즈로 넘어갑니다.
 
 
 
     # 모터 토픽을 발생시키기 전(다음 반복을 하기 전)에 할 일
+    # 시간을 측정하기 위해 count와 atime값을 증가시킵니다.
     count += 1
     atime += 1
 
+    # 끝난 경우엔 speed를 0으로 설정합니다.
     if finish == True:
         speed = 0
 
