@@ -35,7 +35,7 @@ motor_msg = xycar_motor()
 global angle, prevDx, prevDy, prevYaw, prevSpeed, prevAngle, now, where, reftime, firstDy
 angle, prevDx, prevDy, prevYaw, prevSpeed, prevAngle, now = 0, 0, 0, 0, 0, 0, None
 global count, firstDx, finish
-refspeed = 25
+refspeed = 50
 refangle = 50
 retry = 50
 count = -50 * retry
@@ -240,7 +240,7 @@ while not rospy.is_shutdown():
 
     if now == 1:                            # 1) 주차구역에 수직 방향으로 제자리 회전
         where = 0
-        reftime = 38 * retry
+        reftime = 42 * retry
         firstDx = int(arData["DX"])
 
     elif now == 2:                          # 2) 주차구역의 중앙까지 직진하여 이동
@@ -262,7 +262,7 @@ while not rospy.is_shutdown():
             firstDy = int(arData["DY"])
         else:                               # 4) 주차구역까지 직진
             where = 2                       # 직진합니다.
-            if int(arData["DY"]) < 73:      # 만약 DY값이 72이하이면
+            if int(arData["DY"]) < 70:      # 만약 DY < 70 이면
                 finish = True               # 종료합니다.
 
 # ---------------------------------------------------------------------------- #
@@ -293,13 +293,6 @@ while not rospy.is_shutdown():
             temspeed = -refspeed            # 후진합니다.
             temangle = 0
         elif count == retry:                #
-            Docount2 = False if Docount2 == True else True
-            if Docount2 == True:
-                temangle = refangle
-                temspeed = refspeed
-            else:
-                temangle = 0
-                temspeed = -refspeed
             count = -retry
         if atime > reftime:
             atime = 0
@@ -309,25 +302,13 @@ while not rospy.is_shutdown():
     elif where == 1:            #where1은 제자리에서 좌회전하는 코드입니
         if count > retry:
             count = -retry
-
-
         if count < 0:         # 첫번째 반복
-            temspeed = refspeed * 2
+            temspeed = refspeed
             temangle = -refangle
-        elif count == 0:  # 반복 기준점
-            prevDx = int(arData["DX"])
-            prevDy = int(arData["DY"])
         elif count < retry:  # 두번째 반복
-            temspeed = -refspeed * 2.3
+            temspeed = -refspeed
             temangle = 0
         elif count == retry:  # 반복 기준점2
-            Docount2 = False if Docount2 == True else True
-            if Docount2 == True:
-                temangle = refangle
-                temspeed = refspeed
-            else:
-                temangle = 0
-                temspeed = -refspeed
             count = -retry
         if atime > reftime:
             atime = 0
@@ -352,16 +333,6 @@ while not rospy.is_shutdown():
     # 모터 토픽을 발생시키기 전(다음 반복을 하기 전)에 할 일
     count += 1
     atime += 1
-
-
-    try:  # temspeed가 정의되지 않은 경우
-        temspeed != 1
-    except:
-        temspeed = refspeed
-    try:  # temangle가 정의되지 않은 경우
-        temangle == 1
-    except:
-        temangle = refangle
 
     speed = temspeed
     angle = temangle
